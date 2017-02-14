@@ -1,0 +1,175 @@
+apiVersion: v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: swn
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: swn
+    name: swn
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: swn:latest
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git:
+        uri: https://github.com/nhr/swn.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: perl-520-centos7-swn:latest
+      type: Source
+    triggers:
+    - github:
+        secret: Isu_Ve1dbi_9CNvNzhi5
+      type: GitHub
+    - generic:
+        secret: PvBDWlBkRYc3oTXMm-rR
+      type: Generic
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+  status:
+    lastVersion: 0
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: swn
+    name: swn
+  spec:
+    replicas: 1
+    selector:
+      app: swn
+      deploymentconfig: swn
+    strategy:
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/container.swn.image.entrypoint: '["container-entrypoint","usage"]'
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: swn
+          deploymentconfig: swn
+      spec:
+        containers:
+        - image: 172.30.195.74:5000/swn/swn@sha256:62be9dc33b8aaeced1f783f3e9ba5297b2cdd0a7c53a4607982a76248be53661
+          imagePullPolicy: Always
+          name: swn
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - swn
+        from:
+          kind: ImageStreamTag
+          name: swn:latest
+          namespace: swn
+      type: ImageChange
+  status:
+    availableReplicas: 1
+    observedGeneration: 2
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: swn
+    name: swn
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: swn
+      deploymentconfig: swn
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+      openshift.io/image.dockerRepositoryCheck: 2017-01-04T19:01:05Z
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: swn
+    name: perl-520-centos7-swn
+  spec:
+    tags:
+    - annotations:
+        openshift.io/imported-from: docker.io/nhripps/perl-520-centos7-swn
+      from:
+        kind: DockerImage
+        name: 172.30.195.74:5000/swn/perl-520-centos7-swn:latest
+      generation: 2
+      importPolicy: {}
+      name: latest
+  status:
+    dockerImageRepository: ""
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: swn
+    name: swn
+  spec:
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: 172.30.195.74:5000/swn/swn:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+  status:
+    dockerImageRepository: ""
