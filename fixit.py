@@ -1,25 +1,19 @@
 import yaml
 
-def process_build_config(some_yaml):
-    del some_yaml['metadata']['annotations']
-
 if __name__ == '__main__':
     input = open('examples/swn-template-orig.yaml', 'r')
     output = open('examples/swt-script-out.yaml', 'w')
 
     the_yaml = yaml.load(input)
 
-    list_of_kinds = []
-    for openshift_object in the_yaml['objects']:
-        list_of_kinds.append(openshift_object['kind'])
 
-
-    for i in range(len(list_of_kinds)):
+    for i in range(len(the_yaml['objects'])):
 
         ###### global remove metadata annotations
         del the_yaml['objects'][i]['metadata']['annotations']
         if 'generation' in the_yaml['objects'][i]['metadata']:
             del the_yaml['objects'][i]['metadata']['generation']
+        del the_yaml['objects'][i]['status']
 
         ############deploymentConfigs
         # in DeploymentConfig get rid of spec:template:metadata:annotations
@@ -54,7 +48,7 @@ if __name__ == '__main__':
                     the_yaml['objects'][i]['spec'] = {}
                 elif 'openshift.io/imported-from' in the_yaml['objects'][i]['spec']['tags'][j]['annotations']:
                     imported_from = the_yaml['objects'][i]['spec']['tags'][j]['annotations']['openshift.io/imported-from']
-                    the_yaml['objects'][i]['spec'] = {'dockerImageRepository', imported_from}
+                    the_yaml['objects'][i]['spec'] = {'dockerImageRepository': imported_from}
                 else:
                     the_yaml['objects'][i]['spec'] = {}
         ###################
