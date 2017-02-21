@@ -14,7 +14,7 @@ Follow the instructions in the [PyYAML documentation](http://pyyaml.org/wiki/PyY
  
 ## Usage
  
-`oc export bc,dc,svc,is,route --as-template=myapp >> my-orig-template.yml`
+`oc getc export is,bc,dc,svc,route,secret,configmap,pvc,jobs  --as-template=myapp >> my-orig-template.yml`
  
 * Download the python file fixit.py
 * Edit the input name to match the file name above and put in an output file name

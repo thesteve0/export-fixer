@@ -1,0 +1,372 @@
+apiVersion: v1
+kind: Template
+metadata: {creationTimestamp: null, name: myapp}
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer
+  spec: {}
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer-s2i
+  spec: {}
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    creationTimestamp: null
+    labels: {app: geoserver}
+    name: geoserver
+  spec: {dockerImageRepository: winsent/geoserver}
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    creationTimestamp: null
+    labels: {app: postgisservice}
+    name: postgisservice
+  spec: {}
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer
+  spec:
+    nodeSelector: null
+    output:
+      to: {kind: ImageStreamTag, name: 'dataviewer:latest'}
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git: {uri: 'https://github.com/molw/dataviewer.git'}
+      type: Git
+    strategy:
+      sourceStrategy:
+        from: {kind: ImageStreamTag, name: 'dataviewer-s2i:latest'}
+      type: Source
+    triggers:
+    - github: {secret: b705e2c9e667e99b}
+      type: GitHub
+    - imageChange: {}
+      type: ImageChange
+    - {type: ConfigChange}
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: postgisservice}
+    name: postgisservice
+  spec:
+    nodeSelector: null
+    output:
+      to: {kind: ImageStreamTag, name: 'postgisservice:latest'}
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git: {ref: master, uri: 'https://github.com/molw/postgisservice.git'}
+      type: Git
+    strategy:
+      sourceStrategy:
+        from: {kind: ImageStreamTag, name: 'wildfly:10.1', namespace: openshift}
+      type: Source
+    triggers:
+    - generic: {secret: dee2715b6cbec94f}
+      type: Generic
+    - github: {secret: 61686c28af35351f}
+      type: GitHub
+    - imageChange: {}
+      type: ImageChange
+    - {type: ConfigChange}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer
+  spec:
+    replicas: 1
+    selector: {deploymentconfig: dataviewer}
+    strategy:
+      resources: {}
+      rollingParams: {intervalSeconds: 1, maxSurge: 25%, maxUnavailable: 25%, timeoutSeconds: 600,
+        updatePeriodSeconds: 1}
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels: {appid: httpd-server-dataviewer, deploymentconfig: dataviewer}
+      spec:
+        containers:
+        - image: dataviewer
+          imagePullPolicy: Always
+          name: dataviewer
+          ports:
+          - {containerPort: 8080, protocol: TCP}
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - {type: ConfigChange}
+    - imageChangeParams:
+        automatic: true
+        containerNames: [dataviewer]
+        from: {kind: ImageStreamTag, name: 'dataviewer:latest'}
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: geoserver}
+    name: geoserver
+  spec:
+    replicas: 1
+    selector: {app: geoserver, deploymentconfig: geoserver}
+    strategy:
+      resources: {}
+      rollingParams: {intervalSeconds: 1, maxSurge: 25%, maxUnavailable: 25%, timeoutSeconds: 600,
+        updatePeriodSeconds: 1}
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels: {app: geoserver, deploymentconfig: geoserver}
+      spec:
+        containers:
+        - image: winsent/geoserver@sha256:118d6211fdd51dd9030fae20afd6681ccb6188b1d14c7703f02eb422fa2a3b3d
+          imagePullPolicy: Always
+          name: geoserver
+          ports:
+          - {containerPort: 8080, protocol: TCP}
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - {mountPath: /opt/geoserver/data_dir, name: geoserver-data-dir}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: geoserver-data-dir
+    test: false
+    triggers:
+    - {type: ConfigChange}
+    - imageChangeParams:
+        automatic: true
+        containerNames: [geoserver]
+        from: {kind: ImageStreamTag, name: 'geoserver:latest'}
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: postgisservice}
+    name: postgisservice
+  spec:
+    replicas: 2
+    selector: {deploymentconfig: postgisservice}
+    strategy:
+      resources: {}
+      rollingParams: {intervalSeconds: 1, maxSurge: 25%, maxUnavailable: 25%, timeoutSeconds: 600,
+        updatePeriodSeconds: 1}
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels: {app: postgisservice, deploymentconfig: postgisservice}
+      spec:
+        containers:
+        - env:
+          - {name: USER, value: spousty}
+          - {name: PASSWORD, value: notsafe}
+          - {name: DB_NAME, value: molw}
+          image: postgisservice
+          imagePullPolicy: Always
+          name: postgisservice
+          ports:
+          - {containerPort: 8080, protocol: TCP}
+          readinessProbe:
+            failureThreshold: 3
+            httpGet: {path: /, port: 8080, scheme: HTTP}
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames: [postgisservice]
+        from: {kind: ImageStreamTag, name: 'postgisservice:latest'}
+      type: ImageChange
+    - {type: ConfigChange}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    labels: {app: replica}
+    name: replica-dc
+  spec:
+    replicas: 3
+    selector: {name: replica}
+    strategy:
+      recreateParams: {timeoutSeconds: 600}
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels: {app: replica, name: replica}
+      spec:
+        containers:
+        - env:
+          - {name: PG_MASTER_HOST, value: master}
+          - {name: PG_MASTER_SERVICE_NAME, value: master}
+          - {name: PG_MASTER_PORT, value: '5432'}
+          - {name: PGHOST, value: /tmp}
+          - {name: PG_MODE, value: slave}
+          - {name: PG_MASTER_USER, value: master}
+          - {name: PG_MASTER_PASSWORD, value: password}
+          - {name: PG_USER, value: spousty}
+          - {name: PG_PASSWORD, value: notsafe}
+          - {name: PG_ROOT_PASSWORD, value: password}
+          - {name: PG_DATABASE, value: molw}
+          - {name: SHARED_BUFFERS, value: 1GB}
+          - {name: TEMP_BUFFERS, value: 256MB}
+          - {name: WORK_MEM, value: 256MB}
+          - {name: MAX_CONNECTIONS, value: '110'}
+          image: crunchydata/crunchy-postgres:centos7-9.5-1.2.6
+          imagePullPolicy: IfNotPresent
+          name: pg
+          ports:
+          - {containerPort: 5432, protocol: TCP}
+          resources: {}
+          securityContext: {privileged: false}
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - {mountPath: /pgdata, name: pgdata}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: pgdata
+    test: false
+    triggers:
+    - {type: ConfigChange}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer
+  spec:
+    ports:
+    - {name: 8080-tcp, port: 8080, protocol: TCP, targetPort: 8080}
+    selector: {deploymentconfig: dataviewer}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels: {app: geoserver}
+    name: geoserver
+  spec:
+    ports:
+    - {name: 8080-tcp, port: 8080, protocol: TCP, targetPort: 8080}
+    selector: {app: geoserver, deploymentconfig: geoserver}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels: {app: master, name: master}
+    name: master
+  spec:
+    ports:
+    - {name: postgres, port: 5432, protocol: TCP, targetPort: 5432}
+    - {name: pgbadger, port: 10000, protocol: TCP, targetPort: 10000}
+    selector: {name: master}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels: {app: postgisservice}
+    name: postgisservice
+  spec:
+    ports:
+    - {name: 8080-tcp, port: 8080, protocol: TCP, targetPort: 8080}
+    selector: {deploymentconfig: postgisservice}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels: {app: replica, name: replica}
+    name: replica
+  spec:
+    ports:
+    - {port: 5432, protocol: TCP, targetPort: 5432}
+    selector: {name: replica}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Route
+  metadata:
+    creationTimestamp: null
+    labels: {app: httpd-server, appid: httpd-server-dataviewer}
+    name: dataviewer
+  spec:
+    port: {targetPort: 8080-tcp}
+    to: {kind: Service, name: dataviewer, weight: 100}
+    wildcardPolicy: None
+- apiVersion: v1
+  kind: Route
+  metadata:
+    creationTimestamp: null
+    labels: {app: geoserver}
+    name: geoserver
+  spec:
+    port: {targetPort: 8080-tcp}
+    to: {kind: Service, name: geoserver, weight: 100}
+    wildcardPolicy: None
+- apiVersion: v1
+  kind: Route
+  metadata:
+    creationTimestamp: null
+    labels: {app: postgisservice}
+    name: postgisservice
+  spec:
+    port: {targetPort: 8080-tcp}
+    to: {kind: Service, name: postgisservice, weight: 100}
+    wildcardPolicy: None
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata: {creationTimestamp: null, name: new-geoserver}
+  spec:
+    accessModes: [ReadWriteMany]
+    resources:
+      requests: {storage: 20Gi}
